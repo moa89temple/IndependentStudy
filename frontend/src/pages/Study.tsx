@@ -122,7 +122,7 @@ function FlashcardView({
     setShowBack(false);
     setIndex((index + 1) % flashcards.length);
   };
-  const flip = () => setShowBack((b) => !b);
+  const flip = () => setShowBack(!showBack);
 
   return (
     <div className="card">
