@@ -44,3 +44,8 @@ output "aws_region" {
   description = "AWS region (for GitHub Actions)"
   value       = var.aws_region
 }
+
+output "redis_primary_endpoint" {
+  description = "ElastiCache Redis primary endpoint (REDIS_URL uses this)"
+  value       = "${aws_elasticache_replication_group.redis.primary_endpoint_address}:6379"
+}

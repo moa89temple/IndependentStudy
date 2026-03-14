@@ -35,6 +35,7 @@ After apply, use the **outputs** (e.g. `ecr_repository_url`, `main_app_url`, `ap
 | **ALB** | Load balancer in front of ECS; `main_app_url` points here |
 | **Lambda** | Two functions: `lizard-flashcards`, `lizard-study-questions` (proxy to main app or custom logic) |
 | **API Gateway** | HTTP API exposing `/flashcards` and `/study-questions` to invoke Lambda |
+| **ElastiCache (Redis)** | Single-node Redis for RAG; `REDIS_URL` in ECS is auto-filled from the primary endpoint |
 
 ## Main app image
 
@@ -65,13 +66,32 @@ See `.github/workflows/` for workflow stubs (add your own from these outputs).
 - `project_name` – Resource name prefix (default `lizard`)
 - `ecs_task_cpu` / `ecs_task_memory_mb` – Fargate task size
 - `main_app_image_tag` – Image tag for the ECS task definition (default `latest`)
+- `redis_node_type` – ElastiCache node type (default `cache.t3.micro`)
+- `redis_engine_version` – Redis engine version (default `7.0`)
 
-## Secrets
+## Secrets (Option B – Secrets Manager)
 
-The ECS task definition does **not** include `OPENAI_API_KEY` or `REDIS_URL`. For production:
+The ECS task gets `OPENAI_API_KEY` and `REDIS_URL` from **AWS Secrets Manager**. Terraform creates two secrets:
 
-1. Store secrets in **AWS Secrets Manager** or **SSM Parameter Store**.
-2. Add a `secrets` block to the task definition in `ecs.tf` referencing those secrets.
-3. Ensure the ECS task execution role has permission to read them.
+| Secret name | Env var in container | Source |
+|-------------|----------------------|--------|
+| `lizard/openai-api-key` | `OPENAI_API_KEY` | You set this (see below) |
+| `lizard/redis-url` | `REDIS_URL` | **Auto-filled** from Terraform-created ElastiCache; override with `redis_url_secret` if needed |
 
-Similarly, configure Redis (e.g. ElastiCache) and set `REDIS_URL` via secrets or environment.
+**Redis:** Terraform creates an ElastiCache Redis cluster and writes its URL into `lizard/redis-url`. ECS tasks can connect via the existing security group. No manual Redis setup required unless you override with `redis_url_secret`.
+
+**OpenAI API key** – set once (choose one):
+
+1. **AWS Console**  
+   Secrets Manager → `lizard/openai-api-key` → “Retrieve secret value” → “Edit” and set your key.
+
+2. **First apply with variable:**  
+   `terraform apply -var="openai_api_key_secret=sk-..."`  
+   Use only if you are comfortable passing the key on the CLI.
+
+3. **AWS CLI**  
+   ```bash
+   aws secretsmanager put-secret-value --secret-id lizard/openai-api-key --secret-string "sk-your-key"
+   ```
+
+The ECS task execution role has permission to read both secrets.

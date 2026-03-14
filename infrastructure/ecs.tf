@@ -75,7 +75,10 @@ resource "aws_ecs_task_definition" "main_app" {
     environment = [
       { name = "CORS_ORIGINS", value = "*" }
     ]
-    secrets = [] # Add OPENAI_API_KEY, REDIS_URL, etc. via Secrets Manager or SSM in production
+    secrets = [
+      { name = "OPENAI_API_KEY", valueFrom = aws_secretsmanager_secret.openai_api_key.arn },
+      { name = "REDIS_URL", valueFrom = aws_secretsmanager_secret.redis_url.arn }
+    ]
   }])
 }
 

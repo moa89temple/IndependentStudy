@@ -39,3 +39,30 @@ variable "main_app_image_tag" {
   type        = string
   default     = "latest"
 }
+
+# Option B: Secrets Manager. Leave empty to set values in AWS Console after apply.
+variable "openai_api_key_secret" {
+  description = "OpenAI API key for ECS (stored in Secrets Manager). Prefer setting in Console."
+  type        = string
+  default     = ""
+  sensitive   = true
+}
+
+variable "redis_url_secret" {
+  description = "Override Redis URL in Secrets Manager (leave empty to use Terraform-created ElastiCache)."
+  type        = string
+  default     = ""
+  sensitive   = true
+}
+
+variable "redis_node_type" {
+  description = "ElastiCache Redis node type"
+  type        = string
+  default     = "cache.t3.micro"
+}
+
+variable "redis_engine_version" {
+  description = "Redis engine version for ElastiCache"
+  type        = string
+  default     = "7.0"
+}
