@@ -1,7 +1,5 @@
-Rename to deploy.yml and fill in after Terraform apply.
-Use Terraform outputs: ecr_repository_url, ecs_cluster_name, ecs_service_name, aws_region.
-Secrets: AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY (or use OIDC with id-token: write).
-
+# Terraform outputs: ecr_repository_url, ecs_cluster_name, ecs_service_name, aws_region
+# Secrets: AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY (or use OIDC with id-token: write)
 name: Build and Deploy
 on:
   push:
@@ -18,6 +16,7 @@ jobs:
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: ${{ secrets.AWS_REGION }}
       - name: Login to ECR
+        id: ecr
         uses: aws-actions/amazon-ecr-login@v2
       - name: Build and push
         env:
