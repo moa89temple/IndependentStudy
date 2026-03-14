@@ -1,51 +1,51 @@
-# Rename to deploy.yml and fill in after Terraform apply.
-# Use Terraform outputs: ecr_repository_url, ecs_cluster_name, ecs_service_name, aws_region.
-# Secrets: AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY (or use OIDC with id-token: write).
+Rename to deploy.yml and fill in after Terraform apply.
+Use Terraform outputs: ecr_repository_url, ecs_cluster_name, ecs_service_name, aws_region.
+Secrets: AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY (or use OIDC with id-token: write).
 
-# name: Build and Deploy
-# on:
-#   push:
-#     branches: [main]
-# jobs:
-#   build-push-ecr:
-#     runs-on: ubuntu-latest
-#     steps:
-#       - uses: actions/checkout@v4
-#       - name: Configure AWS
-#         uses: aws-actions/configure-aws-credentials@v4
-#         with:
-#           aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-#           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-#           aws-region: ${{ secrets.AWS_REGION }}
-#       - name: Login to ECR
-#         uses: aws-actions/amazon-ecr-login@v2
-#       - name: Build and push
-#         env:
-#           ECR_REGISTRY: ${{ steps.ecr.outputs.registry }}
-#           ECR_REPO: lizard-main-app
-#         run: |
-#           docker build -t $ECR_REGISTRY/$ECR_REPO:latest -f Dockerfile .
-#           docker push $ECR_REGISTRY/$ECR_REPO:latest
-#       - name: Force ECS deployment
-#         run: |
-#           aws ecs update-service --cluster lizard-cluster --service lizard-main-app --force-new-deployment
-#
-#   deploy-lambda:
-#     runs-on: ubuntu-latest
-#     needs: build-push-ecr
-#     steps:
-#       - uses: actions/checkout@v4
-#       - name: Configure AWS
-#         uses: aws-actions/configure-aws-credentials@v4
-#         with:
-#           aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-#           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-#           aws-region: ${{ secrets.AWS_REGION }}
-#       - name: Deploy Lambda flashcards
-#         run: |
-#           cd infrastructure/lambda/flashcards && zip -r /tmp/flashcards.zip . && \
-#           aws lambda update-function-code --function-name lizard-flashcards --zip-file fileb:///tmp/flashcards.zip
-#       - name: Deploy Lambda study-questions
-#         run: |
-#           cd infrastructure/lambda/study_questions && zip -r /tmp/study_questions.zip . && \
-#           aws lambda update-function-code --function-name lizard-study-questions --zip-file fileb:///tmp/study_questions.zip
+name: Build and Deploy
+on:
+  push:
+    branches: [main]
+jobs:
+  build-push-ecr:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Configure AWS
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ secrets.AWS_REGION }}
+      - name: Login to ECR
+        uses: aws-actions/amazon-ecr-login@v2
+      - name: Build and push
+        env:
+          ECR_REGISTRY: ${{ steps.ecr.outputs.registry }}
+          ECR_REPO: lizard-main-app
+        run: |
+          docker build -t $ECR_REGISTRY/$ECR_REPO:latest -f Dockerfile .
+          docker push $ECR_REGISTRY/$ECR_REPO:latest
+      - name: Force ECS deployment
+        run: |
+          aws ecs update-service --cluster lizard-cluster --service lizard-main-app --force-new-deployment
+
+  deploy-lambda:
+    runs-on: ubuntu-latest
+    needs: build-push-ecr
+    steps:
+      - uses: actions/checkout@v4
+      - name: Configure AWS
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ secrets.AWS_REGION }}
+      - name: Deploy Lambda flashcards
+        run: |
+          cd infrastructure/lambda/flashcards && zip -r /tmp/flashcards.zip . && \
+          aws lambda update-function-code --function-name lizard-flashcards --zip-file fileb:///tmp/flashcards.zip
+      - name: Deploy Lambda study-questions
+        run: |
+          cd infrastructure/lambda/study_questions && zip -r /tmp/study_questions.zip . && \
+          aws lambda update-function-code --function-name lizard-study-questions --zip-file fileb:///tmp/study_questions.zip
