@@ -146,9 +146,9 @@ export const DEMO_ADMIN_ANALYTICS: AdminAnalytics = {
       tone: "neutral",
     },
     {
-      title: "Heatmap shows nav + primary CTA clusters",
+      title: "UX clicks cluster on navigation and study controls",
       detail:
-        "Most clicks land on the top navigation and central study controls—good IA alignment; watch for mis-taps on small mobile targets.",
+        "Recorded click density skews toward the top bar and central study actions—good IA alignment; watch for mis-taps on small mobile targets.",
       tone: "neutral",
     },
   ],

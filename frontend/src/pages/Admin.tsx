@@ -319,28 +319,10 @@ export default function Admin() {
             ))}
           </div>
 
-          <div style={{ display: "grid", gridTemplateColumns: "minmax(0, 1.1fr) minmax(0, 0.9fr)", gap: "1rem" }}>
-            <div className="card" style={{ marginBottom: 0 }}>
-              <h3 style={{ margin: "0 0 0.75rem", fontSize: "1rem" }}>Study volume (30d)</h3>
-              <DailyActivitySparkline rows={data.daily_activity} />
-              <ActivityChart rows={data.daily_activity} />
-            </div>
-            <div className="card" style={{ marginBottom: 0 }}>
-              <h3 style={{ margin: "0 0 0.75rem", fontSize: "1rem" }}>Mode mix</h3>
-              <ul style={{ listStyle: "none", padding: 0, margin: 0 }}>
-                {data.interaction_types.map((t) => (
-                  <li key={t.target_type} style={{ display: "flex", justifyContent: "space-between", padding: "0.4rem 0", borderBottom: "1px solid var(--border)" }}>
-                    <span style={{ textTransform: "capitalize" }}>{t.target_type}</span>
-                    <span style={{ fontFamily: "var(--font-mono)", color: "var(--muted)" }}>
-                      {t.total} · {pct(t.correct, t.total)} correct
-                    </span>
-                  </li>
-                ))}
-                {data.interaction_types.length === 0 ? (
-                  <li style={{ color: "var(--muted)" }}>No interactions yet.</li>
-                ) : null}
-              </ul>
-            </div>
+          <div className="card" style={{ marginBottom: 0 }}>
+            <h3 style={{ margin: "0 0 0.75rem", fontSize: "1rem" }}>Study volume (30d)</h3>
+            <DailyActivitySparkline rows={data.daily_activity} />
+            <ActivityChart rows={data.daily_activity} />
           </div>
 
           <h2 style={{ fontSize: "1.05rem", margin: "1.5rem 0 0.75rem" }}>Product UX</h2>
