@@ -40,7 +40,7 @@ export default function Home() {
             value={newName}
             onChange={(e) => setNewName(e.target.value)}
           />
-          <button type="submit" disabled={creating || !newName.trim()}>
+          <button type="submit" disabled={creating || !newName.trim()} data-analytics="home-create-course">
             Create
           </button>
         </form>
@@ -57,7 +57,7 @@ export default function Home() {
         <ul style={{ listStyle: "none", padding: 0, margin: 0 }}>
           {courses.map((c) => (
             <li key={c.id}>
-              <Link to={`/courses/${c.id}`} style={{ display: "block" }}>
+              <Link to={`/courses/${c.id}`} data-analytics="home-open-course" style={{ display: "block" }}>
                 <div className="card" style={{ marginBottom: "0.5rem" }}>
                   <strong>{c.name}</strong>
                   <span style={{ color: "var(--muted)", marginLeft: "0.5rem" }}>/{c.slug}</span>

@@ -83,11 +83,14 @@ export default function CourseDetail() {
         <h1>{course.name}</h1>
         <div style={{ display: "flex", gap: "0.5rem", flexWrap: "wrap" }}>
           <Link to={`/courses/${id}/study`}>
-            <button className="secondary">Study</button>
+            <button type="button" className="secondary" data-analytics="course-study">
+              Study
+            </button>
           </Link>
           <button
             type="button"
             className="secondary"
+            data-analytics="course-delete"
             onClick={deleteCourse}
             disabled={deleting}
             style={{ color: "var(--wrong)" }}
@@ -108,7 +111,7 @@ export default function CourseDetail() {
             accept=".pdf,.txt,.pptx"
             onChange={(e) => setFile(e.target.files?.[0] ?? null)}
           />
-          <button type="submit" disabled={!file || uploading}>
+          <button type="submit" disabled={!file || uploading} data-analytics="course-upload">
             {uploading ? "Uploading…" : "Upload"}
           </button>
         </form>
@@ -125,7 +128,7 @@ export default function CourseDetail() {
           Extract concepts from uploaded materials and generate study content (uses AI; requires OPENAI_API_KEY).
           Large files are processed in batches; run again to process more.
         </p>
-        <button onClick={process} disabled={processing}>
+        <button type="button" onClick={process} disabled={processing} data-analytics="course-process">
           {processing ? "Processing… (1–2 min, please wait)" : "Process"}
         </button>
       </div>

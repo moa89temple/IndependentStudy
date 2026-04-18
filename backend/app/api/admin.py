@@ -4,11 +4,11 @@ from collections import defaultdict
 from datetime import datetime, timedelta
 
 from fastapi import APIRouter, Depends
-from sqlalchemy import and_, case, func, select
+from sqlalchemy import Integer, and_, case, cast, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
-from app.models import Concept, Course, Flashcard, Interaction, Material, PracticeQuestion, TextChunk
+from app.models import Concept, Course, Flashcard, Interaction, Material, PracticeQuestion, TextChunk, UiClick
 from app.schemas.admin import (
     AnalyticsOut,
     CountsOut,
@@ -16,6 +16,10 @@ from app.schemas.admin import (
     DailyActivityOut,
     InsightOut,
     InteractionTypeBreakdownOut,
+    UxAnalyticsOut,
+    UxHeatmapCellOut,
+    UxHeatmapOut,
+    UxTopElementOut,
     UserRollupOut,
 )
 
@@ -318,6 +322,43 @@ async def admin_analytics(db: AsyncSession = Depends(get_db)):
         "correct_total": total_correct_all,
     }
 
+    UX_COLS, UX_ROWS = 20, 12
+    ux_total = int(
+        (await db.execute(select(func.count()).select_from(UiClick).where(UiClick.created_at >= month_ago))).scalar_one()
+        or 0
+    )
+    gx = func.least(UX_COLS - 1, cast(UiClick.x_norm * UX_COLS, Integer))
+    gy = func.least(UX_ROWS - 1, cast(UiClick.y_norm * UX_ROWS, Integer))
+    heat_rows = (
+        await db.execute(
+            select(gx, gy, func.count(UiClick.id))
+            .select_from(UiClick)
+            .where(UiClick.created_at >= month_ago)
+            .group_by(gx, gy)
+        )
+    ).all()
+    heat_cells = [UxHeatmapCellOut(gx=int(r[0]), gy=int(r[1]), count=int(r[2] or 0)) for r in heat_rows]
+    heat_max = max((c.count for c in heat_cells), default=0)
+
+    te_rows = (
+        await db.execute(
+            select(UiClick.element_key, func.count(UiClick.id), func.max(UiClick.path))
+            .where(UiClick.created_at >= month_ago)
+            .group_by(UiClick.element_key)
+            .order_by(func.count(UiClick.id).desc())
+            .limit(15)
+        )
+    ).all()
+    top_els = [
+        UxTopElementOut(element_key=str(r[0]), clicks=int(r[1] or 0), last_path=str(r[2] or "")) for r in te_rows
+    ]
+    ux_block = UxAnalyticsOut(
+        window_days=30,
+        total_clicks=ux_total,
+        heatmap=UxHeatmapOut(columns=UX_COLS, rows=UX_ROWS, max_count=heat_max, cells=heat_cells),
+        top_elements=top_els,
+    )
+
     return AnalyticsOut(
         generated_at=now.isoformat() + "Z",
         counts=CountsOut(
@@ -336,4 +377,5 @@ async def admin_analytics(db: AsyncSession = Depends(get_db)):
         daily_activity=daily_activity,
         courses=courses_out,
         insights=insights,
+        ux=ux_block,
     )

@@ -3,10 +3,12 @@ import Home from "./pages/Home";
 import CourseDetail from "./pages/CourseDetail";
 import Study from "./pages/Study";
 import Admin from "./pages/Admin";
+import { UxClickTracker } from "./components/UxClickTracker";
 
 function App() {
   return (
     <>
+      <UxClickTracker />
       <nav
         style={{
           borderBottom: "1px solid var(--border)",
@@ -18,12 +20,12 @@ function App() {
         }}
       >
         <div>
-          <Link to="/" style={{ fontWeight: 700, color: "var(--text)" }}>
+          <Link to="/" data-analytics="nav-brand" style={{ fontWeight: 700, color: "var(--text)" }}>
             Lizard
           </Link>
           <span style={{ color: "var(--muted)", marginLeft: "0.5rem" }}>— Skip the Library</span>
         </div>
-        <Link to="/admin" style={{ fontWeight: 600, fontSize: "0.95rem" }}>
+        <Link to="/admin" data-analytics="nav-admin" style={{ fontWeight: 600, fontSize: "0.95rem" }}>
           Admin
         </Link>
       </nav>

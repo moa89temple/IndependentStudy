@@ -1,6 +1,10 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
-import { api, type AdminAnalytics, type AdminCourseRollup, type AdminDailyActivity } from "../api";
+import { api, type AdminAnalytics, type AdminCourseRollup, type AdminDailyActivity, type AdminUx } from "../api";
+import { DEMO_ADMIN_ANALYTICS } from "../data/adminDemoData";
+import { AnalyticsVisualSection, DailyActivitySparkline } from "../components/admin/AnalyticsDiagrams";
+
+const DEMO_STORAGE_KEY = "lizard-admin-demo";
 
 function pct(part: number, whole: number): string {
   if (!whole) return "—";
@@ -60,6 +64,94 @@ function ActivityChart({ rows }: { rows: AdminDailyActivity[] }) {
   );
 }
 
+function UxHeatmapPanel({ ux }: { ux: AdminUx }) {
+  const { heatmap } = ux;
+  const max = Math.max(1, heatmap.max_count);
+  const cellMap = useMemo(() => {
+    const m = new Map<string, number>();
+    for (const c of heatmap.cells) m.set(`${c.gx}-${c.gy}`, c.count);
+    return m;
+  }, [heatmap.cells]);
+
+  const tiles = useMemo(() => {
+    const out: { key: string; gx: number; gy: number; count: number }[] = [];
+    for (let gy = 0; gy < heatmap.rows; gy++) {
+      for (let gx = 0; gx < heatmap.columns; gx++) {
+        const count = cellMap.get(`${gx}-${gy}`) ?? 0;
+        out.push({ key: `${gx}-${gy}`, gx, gy, count });
+      }
+    }
+    return out;
+  }, [cellMap, heatmap.columns, heatmap.rows]);
+
+  return (
+    <div className="card" style={{ marginBottom: 0 }}>
+      <h3 style={{ margin: "0 0 0.5rem", fontSize: "1rem" }}>UX click heatmap</h3>
+      <p style={{ margin: "0 0 0.75rem", color: "var(--muted)", fontSize: "0.9rem", lineHeight: 1.5 }}>
+        Clicks on buttons and links are normalized to the viewport (0–1) and bucketed into a {heatmap.columns}×{heatmap.rows}{" "}
+        grid. Brighter cells indicate more activity in that screen region (last {ux.window_days} days, {ux.total_clicks}{" "}
+        events).
+      </p>
+      <div style={{ display: "flex", flexWrap: "wrap", gap: "1rem", alignItems: "flex-start" }}>
+        <div
+          style={{
+            width: "100%",
+            maxWidth: 520,
+            aspectRatio: `${heatmap.columns} / ${heatmap.rows}`,
+            display: "grid",
+            gridTemplateColumns: `repeat(${heatmap.columns}, minmax(0, 1fr))`,
+            gridTemplateRows: `repeat(${heatmap.rows}, minmax(0, 1fr))`,
+            gap: 2,
+            padding: 8,
+            background: "var(--bg)",
+            border: "1px solid var(--border)",
+            borderRadius: 12,
+          }}
+        >
+          {tiles.map((t) => {
+            const intensity = t.count / max;
+            const bg = t.count ? `rgba(34, 197, 94, ${0.1 + intensity * 0.9})` : "rgba(255,255,255,0.03)";
+            return (
+              <div
+                key={t.key}
+                title={t.count ? `${t.count} click(s) near column ${t.gx + 1}, row ${t.gy + 1}` : "No data"}
+                style={{ background: bg, borderRadius: 3, minHeight: 8 }}
+              />
+            );
+          })}
+        </div>
+        <div>
+          <h4 style={{ margin: "0 0 0.5rem", fontSize: "0.95rem", color: "var(--muted)" }}>Top tracked targets</h4>
+          {ux.top_elements.length === 0 ? (
+            <p style={{ color: "var(--muted)", margin: 0 }}>No UI clicks recorded yet. Navigate the app to populate this view.</p>
+          ) : (
+            <ul style={{ listStyle: "none", padding: 0, margin: 0 }}>
+              {ux.top_elements.map((el) => (
+                <li
+                  key={el.element_key}
+                  style={{
+                    display: "flex",
+                    justifyContent: "space-between",
+                    gap: "0.75rem",
+                    padding: "0.45rem 0",
+                    borderBottom: "1px solid var(--border)",
+                    fontSize: "0.88rem",
+                  }}
+                >
+                  <span style={{ fontFamily: "var(--font-mono)", wordBreak: "break-all" }}>{el.element_key}</span>
+                  <span style={{ color: "var(--muted)", whiteSpace: "nowrap" }}>
+                    {el.clicks} · <span style={{ fontSize: "0.8rem" }}>{el.last_path}</span>
+                  </span>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function CourseTable({ courses }: { courses: AdminCourseRollup[] }) {
   if (!courses.length) return <p style={{ color: "var(--muted)", margin: 0 }}>No courses.</p>;
   return (
@@ -98,8 +190,11 @@ function CourseTable({ courses }: { courses: AdminCourseRollup[] }) {
 }
 
 export default function Admin() {
-  const [data, setData] = useState<AdminAnalytics | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [demoMode, setDemoMode] = useState(() => localStorage.getItem(DEMO_STORAGE_KEY) === "1");
+  const [data, setData] = useState<AdminAnalytics | null>(() =>
+    localStorage.getItem(DEMO_STORAGE_KEY) === "1" ? { ...DEMO_ADMIN_ANALYTICS, generated_at: new Date().toISOString() } : null,
+  );
+  const [loading, setLoading] = useState(() => localStorage.getItem(DEMO_STORAGE_KEY) !== "1");
   const [error, setError] = useState<string | null>(null);
 
   const load = useCallback(() => {
@@ -113,8 +208,22 @@ export default function Admin() {
   }, []);
 
   useEffect(() => {
+    if (demoMode) {
+      setData({ ...DEMO_ADMIN_ANALYTICS, generated_at: new Date().toISOString() });
+      setLoading(false);
+      setError(null);
+      return;
+    }
     load();
-  }, [load]);
+  }, [demoMode, load]);
+
+  const refresh = useCallback(() => {
+    if (demoMode) {
+      setData({ ...DEMO_ADMIN_ANALYTICS, generated_at: new Date().toISOString() });
+      return;
+    }
+    load();
+  }, [demoMode, load]);
 
   const accLabel = data?.study.accuracy == null ? "—" : `${Math.round(data.study.accuracy * 1000) / 10}%`;
 
@@ -127,9 +236,26 @@ export default function Admin() {
             Product and learner signals to prioritize what to build next. Data is read-only and best-effort.
           </p>
         </div>
-        <button type="button" className="secondary" onClick={load} disabled={loading}>
-          Refresh
-        </button>
+        <div style={{ display: "flex", alignItems: "center", gap: "1rem", flexWrap: "wrap", justifyContent: "flex-end" }}>
+          <label
+            data-no-ux-track
+            style={{ display: "flex", alignItems: "center", gap: "0.45rem", cursor: "pointer", userSelect: "none", color: "var(--muted)", fontSize: "0.9rem" }}
+          >
+            <input
+              type="checkbox"
+              checked={demoMode}
+              onChange={(e) => {
+                const v = e.target.checked;
+                localStorage.setItem(DEMO_STORAGE_KEY, v ? "1" : "0");
+                setDemoMode(v);
+              }}
+            />
+            Demonstration data
+          </label>
+          <button type="button" className="secondary" onClick={refresh} disabled={loading && !demoMode}>
+            Refresh
+          </button>
+        </div>
       </div>
 
       {loading && !data ? <p style={{ color: "var(--muted)" }}>Loading…</p> : null}
@@ -142,6 +268,15 @@ export default function Admin() {
 
       {data ? (
         <>
+          {demoMode ? (
+            <div className="card" style={{ marginBottom: "1rem", borderColor: "var(--accent)", background: "rgba(34, 197, 94, 0.07)" }}>
+              <strong>Demonstration mode</strong>
+              <p style={{ margin: "0.35rem 0 0", color: "var(--muted)", lineHeight: 1.55 }}>
+                Metrics, insights, and the UX heatmap below use curated sample data for walkthroughs. Disable the toggle to load live
+                telemetry from the API.
+              </p>
+            </div>
+          ) : null}
           <p style={{ color: "var(--muted)", fontSize: "0.85rem", marginTop: 0 }}>
             Snapshot: {data.generated_at}
           </p>
@@ -175,6 +310,8 @@ export default function Admin() {
             <StatCard label="Distinct users" value={data.study.distinct_users} hint="By interaction user_id" />
           </div>
 
+          <AnalyticsVisualSection data={data} />
+
           <h2 style={{ fontSize: "1.05rem", margin: "1.5rem 0 0.75rem" }}>Suggested actions</h2>
           <div style={{ marginBottom: "1.25rem" }}>
             {data.insights.map((i, idx) => (
@@ -185,6 +322,7 @@ export default function Admin() {
           <div style={{ display: "grid", gridTemplateColumns: "minmax(0, 1.1fr) minmax(0, 0.9fr)", gap: "1rem" }}>
             <div className="card" style={{ marginBottom: 0 }}>
               <h3 style={{ margin: "0 0 0.75rem", fontSize: "1rem" }}>Study volume (30d)</h3>
+              <DailyActivitySparkline rows={data.daily_activity} />
               <ActivityChart rows={data.daily_activity} />
             </div>
             <div className="card" style={{ marginBottom: 0 }}>
@@ -204,6 +342,9 @@ export default function Admin() {
               </ul>
             </div>
           </div>
+
+          <h2 style={{ fontSize: "1.05rem", margin: "1.5rem 0 0.75rem" }}>Product UX</h2>
+          <UxHeatmapPanel ux={data.ux} />
 
           <div className="card" style={{ marginTop: "1rem" }}>
             <h3 style={{ margin: "0 0 0.75rem", fontSize: "1rem" }}>Users (top by attempts)</h3>

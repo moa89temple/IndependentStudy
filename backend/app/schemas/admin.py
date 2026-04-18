@@ -50,6 +50,32 @@ class InsightOut(BaseModel):
     tone: Literal["positive", "neutral", "warning"]
 
 
+class UxHeatmapCellOut(BaseModel):
+    gx: int
+    gy: int
+    count: int
+
+
+class UxHeatmapOut(BaseModel):
+    columns: int
+    rows: int
+    max_count: int
+    cells: list[UxHeatmapCellOut]
+
+
+class UxTopElementOut(BaseModel):
+    element_key: str
+    clicks: int
+    last_path: str
+
+
+class UxAnalyticsOut(BaseModel):
+    window_days: int = 30
+    total_clicks: int
+    heatmap: UxHeatmapOut
+    top_elements: list[UxTopElementOut]
+
+
 class AnalyticsOut(BaseModel):
     generated_at: str
     counts: CountsOut
@@ -59,3 +85,4 @@ class AnalyticsOut(BaseModel):
     daily_activity: list[DailyActivityOut]
     courses: list[CourseRollupOut]
     insights: list[InsightOut]
+    ux: UxAnalyticsOut

@@ -46,7 +46,9 @@ export default function Study() {
       <div className="page-header">
         <h1>Study</h1>
         <Link to={`/courses/${id}`}>
-          <button className="secondary">Back to course</button>
+          <button type="button" className="secondary" data-analytics="study-back-course">
+            Back to course
+          </button>
         </Link>
       </div>
 
@@ -60,16 +62,20 @@ export default function Study() {
         <>
           <div style={{ display: "flex", gap: "0.5rem", marginBottom: "1rem" }}>
             <button
+              type="button"
               className={tab === "flashcards" ? "" : "secondary"}
               onClick={() => setTab("flashcards")}
               disabled={!hasFlashcards}
+              data-analytics="study-tab-flashcards"
             >
               Flashcards ({flashcards.length})
             </button>
             <button
+              type="button"
               className={tab === "questions" ? "" : "secondary"}
               onClick={() => setTab("questions")}
               disabled={!hasQuestions}
+              data-analytics="study-tab-questions"
             >
               Practice questions ({questions.length})
             </button>
@@ -129,7 +135,7 @@ function FlashcardView({
       <p style={{ color: "var(--muted)", margin: "0 0 0.5rem", fontSize: "0.85rem" }}>
         Card {index + 1} of {flashcards.length}
       </p>
-      <div className="flashcard" onClick={flip}>
+      <div className="flashcard" data-analytics="study-flip-card" onClick={flip} onKeyDown={(e) => e.key === "Enter" && flip()} role="button" tabIndex={0}>
         {!showBack ? <div>{fc.front}</div> : <div className="back">{fc.back}</div>}
       </div>
       <p style={{ fontSize: "0.85rem", color: "var(--muted)", margin: "0.5rem 0 0" }}>
@@ -138,6 +144,8 @@ function FlashcardView({
       {showBack && (
         <div style={{ display: "flex", gap: "0.5rem", marginTop: "1rem" }}>
           <button
+            type="button"
+            data-analytics="study-flashcard-incorrect"
             onClick={() => {
               onRate(false);
               next();
@@ -147,6 +155,8 @@ function FlashcardView({
             Incorrect
           </button>
           <button
+            type="button"
+            data-analytics="study-flashcard-correct"
             onClick={() => {
               onRate(true);
               next();
@@ -192,7 +202,9 @@ function QuestionsView({
         <p style={{ margin: 0 }}>{q.question}</p>
       </div>
       {!showAnswer ? (
-        <button onClick={() => setShowAnswer(true)}>Show answer</button>
+        <button type="button" data-analytics="study-show-answer" onClick={() => setShowAnswer(true)}>
+          Show answer
+        </button>
       ) : (
         <>
           <div className="question-block">
@@ -201,6 +213,8 @@ function QuestionsView({
           </div>
           <div style={{ display: "flex", gap: "0.5rem", marginTop: "1rem" }}>
             <button
+              type="button"
+              data-analytics="study-question-incorrect"
               onClick={() => {
                 onRate(false);
                 next();
@@ -210,6 +224,8 @@ function QuestionsView({
               Incorrect
             </button>
             <button
+              type="button"
+              data-analytics="study-question-correct"
               onClick={() => {
                 onRate(true);
                 next();

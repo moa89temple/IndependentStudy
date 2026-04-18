@@ -93,6 +93,32 @@ export type AdminInsight = {
   tone: "positive" | "neutral" | "warning";
 };
 
+export type AdminUxHeatmapCell = {
+  gx: number;
+  gy: number;
+  count: number;
+};
+
+export type AdminUxHeatmap = {
+  columns: number;
+  rows: number;
+  max_count: number;
+  cells: AdminUxHeatmapCell[];
+};
+
+export type AdminUxElement = {
+  element_key: string;
+  clicks: number;
+  last_path: string;
+};
+
+export type AdminUx = {
+  window_days: number;
+  total_clicks: number;
+  heatmap: AdminUxHeatmap;
+  top_elements: AdminUxElement[];
+};
+
 export type AdminAnalytics = {
   generated_at: string;
   counts: AdminCounts;
@@ -108,6 +134,17 @@ export type AdminAnalytics = {
   daily_activity: AdminDailyActivity[];
   courses: AdminCourseRollup[];
   insights: AdminInsight[];
+  ux: AdminUx;
+};
+
+export type UxClickRecord = {
+  path: string;
+  element_key: string;
+  tag: string;
+  x_norm: number;
+  y_norm: number;
+  viewport_w: number;
+  viewport_h: number;
 };
 
 async function fetchApi<T>(path: string, options?: RequestInit): Promise<T> {
@@ -189,5 +226,19 @@ export const api = {
   },
   admin: {
     analytics: () => fetchApi<AdminAnalytics>(`/admin/analytics`),
+  },
+  ux: {
+    recordClicks: async (clicks: UxClickRecord[]) => {
+      if (!clicks.length) return;
+      const res = await fetch(BASE + "/ux/clicks", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ user_id: "default", clicks }),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({ detail: res.statusText }));
+        throw new Error(Array.isArray(err.detail) ? err.detail[0]?.msg : err.detail || res.statusText);
+      }
+    },
   },
 };
