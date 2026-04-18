@@ -46,6 +46,70 @@ export type ReviewData = {
   questions: PracticeQuestion[];
 };
 
+export type AdminCounts = {
+  courses: number;
+  materials: number;
+  text_chunks: number;
+  concepts: number;
+  flashcards: number;
+  practice_questions: number;
+  interactions: number;
+  interactions_last_7d: number;
+};
+
+export type AdminInteractionTypeBreakdown = {
+  target_type: string;
+  total: number;
+  correct: number;
+};
+
+export type AdminUserRollup = {
+  user_id: string;
+  total: number;
+  correct: number;
+};
+
+export type AdminDailyActivity = {
+  day: string;
+  total: number;
+  correct: number;
+};
+
+export type AdminCourseRollup = {
+  course_id: number;
+  name: string;
+  slug: string;
+  created_at: string;
+  materials: number;
+  concepts: number;
+  flashcards: number;
+  practice_questions: number;
+  study_interactions: number;
+};
+
+export type AdminInsight = {
+  title: string;
+  detail: string;
+  tone: "positive" | "neutral" | "warning";
+};
+
+export type AdminAnalytics = {
+  generated_at: string;
+  counts: AdminCounts;
+  study: {
+    interactions_total: number;
+    interactions_last_7d: number;
+    accuracy: number | null;
+    distinct_users: number;
+    correct_total: number;
+  };
+  interaction_types: AdminInteractionTypeBreakdown[];
+  users: AdminUserRollup[];
+  daily_activity: AdminDailyActivity[];
+  courses: AdminCourseRollup[];
+  insights: AdminInsight[];
+};
+
 async function fetchApi<T>(path: string, options?: RequestInit): Promise<T> {
   const res = await fetch(BASE + path, {
     ...options,
@@ -122,5 +186,8 @@ export const api = {
         method: "POST",
         body: JSON.stringify({ user_id: "default", ...data }),
       }),
+  },
+  admin: {
+    analytics: () => fetchApi<AdminAnalytics>(`/admin/analytics`),
   },
 };
