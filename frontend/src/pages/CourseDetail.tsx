@@ -9,7 +9,7 @@ import {
   Upload,
   Wand2,
 } from "lucide-react";
-import { api, type Course, type Concept } from "../api";
+import { api, type Course, type Concept, type ProcessJob, type ShortVideo } from "../api";
 import { PageHeader } from "@/components/lms/PageHeader";
 import { Section } from "@/components/lms/Section";
 import { EmptyState } from "@/components/lms/EmptyState";
@@ -25,6 +25,8 @@ export default function CourseDetail() {
   const [loading, setLoading] = useState(true);
   const [uploading, setUploading] = useState(false);
   const [processing, setProcessing] = useState(false);
+  const [processJob, setProcessJob] = useState<ProcessJob | null>(null);
+  const [shorts, setShorts] = useState<ShortVideo[]>([]);
   const [file, setFile] = useState<File | null>(null);
   const [uploadSuccess, setUploadSuccess] = useState<string | null>(null);
 
@@ -33,11 +35,42 @@ export default function CourseDetail() {
     Promise.all([
       api.courses.list().then((list) => list.find((c) => c.id === id) ?? null),
       api.learning.concepts(id).catch(() => []),
-    ]).then(([c, conceptList]) => {
+      api.learning.shorts(id).catch(() => []),
+      api.learning.processLatest(id).catch(() => null),
+    ]).then(([c, conceptList, shortsList, latestJob]) => {
       setCourse(c ?? null);
       setConcepts(conceptList);
+      setShorts(shortsList);
+      setProcessJob(latestJob);
+      setProcessing(!!latestJob && ["queued", "processing"].includes(latestJob.status));
     }).finally(() => setLoading(false));
   }, [id]);
+
+  useEffect(() => {
+    if (!id || !processJob) return;
+    if (!["queued", "processing"].includes(processJob.status)) return;
+    const timer = setInterval(async () => {
+      try {
+        const [job, conceptList, shortsList] = await Promise.all([
+          api.learning.processJob(id, processJob.job_id),
+          api.learning.concepts(id).catch(() => concepts),
+          api.learning.shorts(id).catch(() => shorts),
+        ]);
+        setProcessJob(job);
+        setConcepts(conceptList);
+        setShorts(shortsList);
+        if (!["queued", "processing"].includes(job.status)) {
+          setProcessing(false);
+          if (job.status === "failed" && job.error) {
+            alert(job.error);
+          }
+        }
+      } catch {
+        // Keep polling; transient errors should not kill process tracking.
+      }
+    }, 2500);
+    return () => clearInterval(timer);
+  }, [id, processJob]);
 
   const upload = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -63,12 +96,11 @@ export default function CourseDetail() {
     if (!id || processing) return;
     setProcessing(true);
     try {
-      await api.learning.process(id);
-      const list = await api.learning.concepts(id);
-      setConcepts(list);
+      const job = await api.learning.process(id);
+      setProcessJob(job);
+      setProcessing(["queued", "processing"].includes(job.status));
     } catch (err) {
       alert((err as Error).message);
-    } finally {
       setProcessing(false);
     }
   };
@@ -114,6 +146,8 @@ export default function CourseDetail() {
   }
 
   const hasConcepts = concepts.length > 0;
+  const shortsDone = shorts.filter((s) => s.status.toLowerCase() === "completed" && !!s.video_url).length;
+  const shortsPending = shorts.filter((s) => ["queued", "processing"].includes(s.status.toLowerCase())).length;
 
   return (
     <div className="lms-container space-y-10">
@@ -155,7 +189,7 @@ export default function CourseDetail() {
           {
             step: 3,
             title: "Study",
-            desc: "Flashcards & practice questions.",
+            desc: "Flashcards, questions, and shorts.",
             active: hasConcepts,
           },
         ].map((s) => (
@@ -251,14 +285,14 @@ export default function CourseDetail() {
             <button
               type="button"
               onClick={process}
-              disabled={processing}
+              disabled={processing || processJob?.status === "queued" || processJob?.status === "processing"}
               data-analytics="course-process"
               className="btn-primary inline-flex w-full items-center justify-center gap-2"
             >
-              {processing ? (
+              {processing || processJob?.status === "queued" || processJob?.status === "processing" ? (
                 <>
                   <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
-                  Processing… (may take 1–2 min)
+                  Processing in background…
                 </>
               ) : (
                 <>
@@ -267,6 +301,16 @@ export default function CourseDetail() {
                 </>
               )}
             </button>
+            {processJob ? (
+              <p className="text-xs text-[var(--muted-foreground)]">
+                Job status: <span className="font-semibold">{processJob.status}</span>
+                {processJob.status === "failed" && processJob.error ? ` - ${processJob.error}` : ""}
+              </p>
+            ) : null}
+            <p className="text-xs text-[var(--muted-foreground)]">
+              Shorts progress: {shortsDone}/{shorts.length} completed
+              {shortsPending > 0 ? ` · ${shortsPending} still processing` : ""}
+            </p>
           </div>
         </Section>
       </div>
@@ -274,7 +318,7 @@ export default function CourseDetail() {
       <Section
         id="concepts"
         title={`Concepts (${concepts.length})`}
-        description="Key ideas extracted from your materials. These power flashcards and practice questions."
+        description="Key ideas extracted from your materials. These power flashcards, practice questions, and shorts."
       >
         {loading ? (
           <p className="text-sm text-[var(--muted-foreground)]">Refreshing concepts…</p>

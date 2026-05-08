@@ -1,3 +1,4 @@
+from datetime import datetime
 from pydantic import BaseModel
 
 
@@ -30,6 +31,21 @@ class PracticeQuestionOut(BaseModel):
     question: str
     expected_answer: str
     source_ref: str | None
+
+    class Config:
+        from_attributes = True
+
+
+class ShortVideoOut(BaseModel):
+    id: int
+    course_id: int
+    topic: str
+    job_id: str
+    status: str
+    status_url: str | None
+    video_url: str | None
+    error: str | None
+    created_at: datetime
 
     class Config:
         from_attributes = True

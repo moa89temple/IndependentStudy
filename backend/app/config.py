@@ -8,6 +8,9 @@ class Settings(BaseSettings):
     redis_url: str = "redis://localhost:6379/0"
     upload_dir: Path = Path("./uploads")
     cors_origins: str = "http://localhost:5173,http://127.0.0.1:5173"
+    shorts_api_base_url: str = "http://lizard-alb-526948577.us-east-1.elb.amazonaws.com"
+    shorts_poll_interval_seconds: int = 4
+    shorts_poll_max_attempts: int = 90
 
     class Config:
         env_file = ".env"

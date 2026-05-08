@@ -44,6 +44,29 @@ export type PracticeQuestion = {
 export type ReviewData = {
   flashcards: Flashcard[];
   questions: PracticeQuestion[];
+  shorts: ShortVideo[];
+};
+
+export type ProcessJob = {
+  job_id: string;
+  course_id: number;
+  status: "queued" | "processing" | "completed" | "failed";
+  error: string | null;
+  created_at: string;
+  started_at: string | null;
+  completed_at: string | null;
+};
+
+export type ShortVideo = {
+  id: number;
+  course_id: number;
+  topic: string;
+  job_id: string;
+  status: string;
+  status_url: string | null;
+  video_url: string | null;
+  error: string | null;
+  created_at: string;
 };
 
 export type AdminCounts = {
@@ -186,30 +209,31 @@ export const api = {
     },
   },
   learning: {
-    process: (courseId: number) => {
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 5 * 60 * 1000); // 5 min
-      return fetch(BASE + `/courses/${courseId}/process`, {
+    process: (courseId: number) =>
+      fetch(BASE + `/courses/${courseId}/process`, {
         method: "POST",
-        signal: controller.signal,
       })
         .then(async (res) => {
-          clearTimeout(timeoutId);
           if (!res.ok) {
             const err = await res.json().catch(() => ({ detail: res.statusText }));
             throw new Error(Array.isArray(err.detail) ? err.detail[0]?.msg : err.detail || res.statusText);
           }
-          return res.status === 204 ? {} : await res.json();
-        })
-        .catch((e) => {
-          clearTimeout(timeoutId);
-          if (e.name === "AbortError") throw new Error("Processing timed out. Try a smaller file or run Process again.");
-          throw e;
-        }) as Promise<{ status?: string }>;
-    },
+          return (await res.json()) as ProcessJob;
+        }),
+    processLatest: (courseId: number) =>
+      fetch(BASE + `/courses/${courseId}/process/latest`).then(async (res) => {
+        if (!res.ok) {
+          const err = await res.json().catch(() => ({ detail: res.statusText }));
+          throw new Error(Array.isArray(err.detail) ? err.detail[0]?.msg : err.detail || res.statusText);
+        }
+        return (await res.json()) as ProcessJob | null;
+      }),
+    processJob: (courseId: number, jobId: string) =>
+      fetchApi<ProcessJob>(`/courses/${courseId}/process/jobs/${jobId}`),
     concepts: (courseId: number) => fetchApi<Concept[]>(`/courses/${courseId}/concepts`),
     flashcards: (courseId: number) => fetchApi<Flashcard[]>(`/courses/${courseId}/flashcards`),
     questions: (courseId: number) => fetchApi<PracticeQuestion[]>(`/courses/${courseId}/questions`),
+    shorts: (courseId: number) => fetchApi<ShortVideo[]>(`/courses/${courseId}/shorts`),
     review: (courseId: number) => fetchApi<ReviewData>(`/courses/${courseId}/review`),
   },
   interactions: {

@@ -3,6 +3,7 @@ import { Link, useParams } from "react-router-dom";
 import {
   BookOpen,
   Check,
+  Clapperboard,
   ChevronLeft,
   HelpCircle,
   Keyboard,
@@ -10,7 +11,7 @@ import {
   Loader2,
   X,
 } from "lucide-react";
-import { api, type Flashcard, type PracticeQuestion, type ReviewData } from "../api";
+import { api, type Flashcard, type PracticeQuestion, type ReviewData, type ShortVideo } from "../api";
 import { PageHeader } from "@/components/lms/PageHeader";
 import { EmptyState } from "@/components/lms/EmptyState";
 import { cn } from "@/lib/utils";
@@ -24,12 +25,30 @@ export default function Study() {
   const [showBack, setShowBack] = useState(false);
   const [qIndex, setQIndex] = useState(0);
   const [showAnswer, setShowAnswer] = useState(false);
-  const [tab, setTab] = useState<"flashcards" | "questions">("flashcards");
+  const [tab, setTab] = useState<"flashcards" | "questions" | "shorts">("flashcards");
 
   useEffect(() => {
     if (!id || isNaN(id)) return;
     api.learning.review(id).then(setData).finally(() => setLoading(false));
   }, [id]);
+
+  useEffect(() => {
+    if (!id || !data) return;
+    const hasPendingShorts = (data.shorts ?? []).some((s) =>
+      ["queued", "processing"].includes(s.status.toLowerCase())
+    );
+    if (!hasPendingShorts) return;
+
+    const timer = setInterval(async () => {
+      try {
+        const latest = await api.learning.review(id);
+        setData(latest);
+      } catch {
+        // Keep polling while jobs are pending; transient failures are expected.
+      }
+    }, 3000);
+    return () => clearInterval(timer);
+  }, [id, data]);
 
   const recordFlashcard = (correct: boolean) => {
     const fc = data?.flashcards[fcIndex];
@@ -54,6 +73,10 @@ export default function Study() {
   const questions = data.questions;
   const hasFlashcards = flashcards.length > 0;
   const hasQuestions = questions.length > 0;
+  const shorts = data.shorts ?? [];
+  const hasShorts = shorts.length > 0;
+  const shortsPending = shorts.filter((s) => ["queued", "processing"].includes(s.status.toLowerCase())).length;
+  const shortsCompleted = shorts.filter((s) => s.status.toLowerCase() === "completed" && !!s.video_url).length;
 
   return (
     <div className="lms-container space-y-8 pb-12">
@@ -77,7 +100,7 @@ export default function Study() {
         }
       />
 
-      {!hasFlashcards && !hasQuestions ? (
+      {!hasFlashcards && !hasQuestions && !hasShorts ? (
         <EmptyState
           icon={BookOpen}
           title="Nothing to study yet"
@@ -144,6 +167,29 @@ export default function Study() {
                   {questions.length}
                 </span>
               </button>
+              <button
+                type="button"
+                role="tab"
+                aria-selected={tab === "shorts"}
+                disabled={!hasShorts}
+                onClick={() => {
+                  setTab("shorts");
+                }}
+                data-analytics="study-tab-shorts"
+                className={cn(
+                  "inline-flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-semibold transition",
+                  tab === "shorts"
+                    ? "bg-[var(--primary)] text-[var(--primary-foreground)] shadow-sm"
+                    : "text-[var(--muted-foreground)] hover:bg-[var(--muted)]",
+                  !hasShorts && "cursor-not-allowed opacity-40"
+                )}
+              >
+                <Clapperboard className="h-4 w-4" aria-hidden />
+                Shorts
+                <span className="rounded-full bg-black/10 px-2 py-0.5 text-xs font-mono tabular-nums dark:bg-white/15">
+                  {shorts.length}
+                </span>
+              </button>
             </div>
             <p className="flex items-center gap-2 text-xs text-[var(--muted-foreground)]">
               <Keyboard className="h-3.5 w-3.5 shrink-0" aria-hidden />
@@ -172,8 +218,59 @@ export default function Study() {
               onRate={recordQuestion}
             />
           )}
+          {tab === "shorts" && hasShorts && (
+            <ShortsView shorts={shorts} pending={shortsPending} completed={shortsCompleted} />
+          )}
         </>
       )}
+    </div>
+  );
+}
+
+function ShortsView({
+  shorts,
+  pending,
+  completed,
+}: {
+  shorts: ShortVideo[];
+  pending: number;
+  completed: number;
+}) {
+  return (
+    <div className="mx-auto w-full max-w-5xl space-y-4">
+      <div className="rounded-lg border border-[var(--border)] bg-[var(--muted)]/30 px-4 py-3 text-sm text-[var(--muted-foreground)]">
+        Shorts progress: <span className="font-semibold text-[var(--foreground)]">{completed}</span> / {shorts.length} completed
+        {pending > 0 ? (
+          <span className="ml-2 inline-flex items-center gap-1">
+            <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden />
+            {pending} processing
+          </span>
+        ) : null}
+      </div>
+      <div className="grid gap-5 md:grid-cols-2">
+        {shorts.map((short) => (
+          <article key={short.id} className="lms-card lms-card-elevated space-y-4">
+            <div className="flex items-center justify-between gap-3">
+              <h3 className="m-0 text-base font-semibold text-[var(--foreground)]">{short.topic}</h3>
+              <span className="rounded-md bg-[var(--muted)] px-2 py-1 text-xs text-[var(--muted-foreground)]">
+                {short.status}
+              </span>
+            </div>
+            {short.video_url ? (
+              <video
+                controls
+                preload="metadata"
+                className="w-full rounded-lg border border-[var(--border)] bg-black"
+                src={short.video_url}
+              />
+            ) : (
+              <p className="text-sm text-[var(--muted-foreground)]">
+                {short.error || "Video is still processing. This section auto-refreshes."}
+              </p>
+            )}
+          </article>
+        ))}
+      </div>
     </div>
   );
 }

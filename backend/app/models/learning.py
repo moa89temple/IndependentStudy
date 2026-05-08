@@ -1,4 +1,5 @@
-from sqlalchemy import String, Text, ForeignKey, Integer
+from datetime import datetime
+from sqlalchemy import String, Text, ForeignKey, Integer, DateTime
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.database import Base
@@ -43,3 +44,19 @@ class PracticeQuestion(Base):
     source_ref: Mapped[str | None] = mapped_column(String(256), nullable=True)
 
     concept: Mapped["Concept"] = relationship("Concept", back_populates="practice_questions")
+
+
+class ShortVideo(Base):
+    __tablename__ = "short_videos"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    course_id: Mapped[int] = mapped_column(ForeignKey("courses.id", ondelete="CASCADE"), nullable=False, index=True)
+    topic: Mapped[str] = mapped_column(String(256), nullable=False)
+    job_id: Mapped[str] = mapped_column(String(128), nullable=False, index=True)
+    status: Mapped[str] = mapped_column(String(64), nullable=False, default="queued")
+    status_url: Mapped[str | None] = mapped_column(String(512), nullable=True)
+    video_url: Mapped[str | None] = mapped_column(String(1024), nullable=True)
+    error: Mapped[str | None] = mapped_column(Text, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+
+    course: Mapped["Course"] = relationship("Course")

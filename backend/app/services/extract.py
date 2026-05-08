@@ -1,15 +1,20 @@
-"""Extract concepts from chunks and generate flashcards + practice questions via LLM. RAG (Redis) only."""
+"""Extract concepts and generate flashcards/questions/shorts via LLM + RAG."""
+import asyncio
 import json
+from urllib import error as urlerror
+from urllib import request as urlrequest
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.config import settings
-from app.models import Course, Material, Concept, Flashcard, PracticeQuestion
+from app.models import Course, Material, Concept, Flashcard, PracticeQuestion, ShortVideo
 from app.prompts.extract import (
     FLASHCARD_PROMPT,
     PRACTICE_QUESTION_PROMPT,
     RAG_CONCEPT_EXTRACTION_PROMPT,
+    SHORTS_TOPICS_PROMPT,
+    SHORTS_DIALOGUE_PROMPT,
 )
 from app.services.rag import (
     _get_redis,
@@ -84,6 +89,145 @@ def _parse_single_json(raw: str) -> dict | None:
 # RAG: max chunks to embed and store in Redis per course; max passages to send to LLM per run
 MAX_CHUNKS_TO_EMBED = 30
 RAG_TOP_K = 12
+MAX_SHORTS_TOPICS = 8
+
+
+def _parse_string_list(raw: str) -> list[str]:
+    items = _parse_json_list(raw)
+    if not isinstance(items, list):
+        return []
+    topics: list[str] = []
+    for item in items:
+        if not isinstance(item, str):
+            continue
+        topic = item.strip()
+        if topic and topic.lower() not in {t.lower() for t in topics}:
+            topics.append(topic[:120])
+        if len(topics) >= MAX_SHORTS_TOPICS:
+            break
+    return topics
+
+
+def _parse_dialogue_items(raw: str) -> list[dict]:
+    arr = _parse_json_list(raw)
+    if not isinstance(arr, list):
+        return []
+    cleaned: list[dict] = []
+    for item in arr:
+        if not isinstance(item, dict):
+            continue
+        dialogue = str(item.get("dialogue", "")).strip()[:300]
+        character = str(item.get("character", "")).strip()
+        image = str(item.get("image", "")).strip()
+        image_search = str(item.get("image_search", "")).strip()[:120]
+        if character not in {"Peter", "Stewie"}:
+            continue
+        if character == "Peter" and image != "peter.png":
+            image = "peter.png"
+        if character == "Stewie" and image != "stewie.png":
+            image = "stewie.png"
+        if not dialogue:
+            continue
+        cleaned.append({
+            "dialogue": dialogue,
+            "character": character,
+            "image": image,
+            "image_search": image_search,
+            "audio_processed": 0,
+            "audio_process_retry": 0,
+        })
+        if len(cleaned) >= 32:
+            break
+    return cleaned
+
+
+def _post_generate_sync(dialogues: list[dict]) -> dict:
+    url = f"{settings.shorts_api_base_url.rstrip('/')}/lizards/generate"
+    payload = json.dumps(dialogues).encode("utf-8")
+    req = urlrequest.Request(
+        url,
+        data=payload,
+        method="POST",
+        headers={"Content-Type": "application/json; charset=utf-8"},
+    )
+    with urlrequest.urlopen(req, timeout=45) as res:
+        raw = res.read().decode("utf-8")
+    return json.loads(raw)
+
+
+def _get_job_sync(job_id: str) -> dict:
+    url = f"{settings.shorts_api_base_url.rstrip('/')}/lizards/jobs/{job_id}"
+    req = urlrequest.Request(url, method="GET")
+    with urlrequest.urlopen(req, timeout=45) as res:
+        raw = res.read().decode("utf-8")
+    return json.loads(raw)
+
+
+async def _create_short_video_for_topic(session: AsyncSession, course_id: int, topic: str) -> None:
+    dialogue_prompt = SHORTS_DIALOGUE_PROMPT.format(topic=topic)
+    dialogue_raw = await _call_llm(
+        system="Output only valid JSON array of dialogue objects, no markdown.",
+        user=dialogue_prompt,
+    )
+    dialogues = _parse_dialogue_items(dialogue_raw)
+    if not dialogues:
+        session.add(ShortVideo(
+            course_id=course_id,
+            topic=topic,
+            job_id=f"local-{topic[:30]}",
+            status="failed",
+            error="LLM did not return a valid dialogue array for shorts generation.",
+        ))
+        return
+
+    try:
+        generate_response = await asyncio.to_thread(_post_generate_sync, dialogues)
+        job_id = str(generate_response.get("job_id", "")).strip()
+        status = str(generate_response.get("status", "queued")).strip() or "queued"
+        status_url = generate_response.get("status_url")
+        if not job_id:
+            raise ValueError("Shorts API did not return job_id")
+    except (urlerror.URLError, TimeoutError, json.JSONDecodeError, ValueError) as e:
+        session.add(ShortVideo(
+            course_id=course_id,
+            topic=topic,
+            job_id=f"local-{topic[:30]}",
+            status="failed",
+            error=f"Shorts create request failed: {e!s}",
+        ))
+        return
+
+    video_url: str | None = None
+    error_message: str | None = None
+    for _ in range(settings.shorts_poll_max_attempts):
+        await asyncio.sleep(max(1, settings.shorts_poll_interval_seconds))
+        try:
+            job = await asyncio.to_thread(_get_job_sync, job_id)
+        except (urlerror.URLError, TimeoutError, json.JSONDecodeError):
+            continue
+        status = str(job.get("status", status)).strip() or status
+        maybe_video_url = str(job.get("video_url", "")).strip()
+        if maybe_video_url:
+            video_url = maybe_video_url
+        if status.lower() == "completed" and video_url:
+            break
+        if status.lower() in {"failed", "error", "cancelled"}:
+            error_message = str(job.get("error", "")).strip() or "Shorts job failed."
+            break
+
+    if status.lower() != "completed" or not video_url:
+        if not error_message:
+            error_message = "Timed out waiting for shorts job completion."
+
+    session.add(ShortVideo(
+        course_id=course_id,
+        topic=topic,
+        job_id=job_id,
+        status=status,
+        status_url=status_url,
+        video_url=video_url,
+        error=error_message,
+    ))
 
 
 async def _add_flashcard_and_question(
@@ -212,4 +356,17 @@ async def run_extraction(session: AsyncSession, course_id: int) -> None:
         session.add(concept)
         await session.flush()
         await _add_flashcard_and_question(session, concept, name, explanation, source_span)
+
+    # Shorts flow: extract broad topics from uploaded material and generate short videos.
+    materials_text = "\n\n".join(
+        f"{r.get('material_title', '')}: {r.get('content', '')[:1200]}" for r in relevant
+    )[:24000]
+    topics_raw = await _call_llm(
+        system="Return only a valid JSON array of short topic strings.",
+        user=SHORTS_TOPICS_PROMPT.format(materials_text=materials_text),
+    )
+    topics = _parse_string_list(topics_raw)
+    for topic in topics:
+        await _create_short_video_for_topic(session, course_id, topic)
+
     await session.flush()

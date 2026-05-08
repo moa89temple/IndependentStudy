@@ -29,3 +29,84 @@ Concept: {concept_name}
 Explanation: {explanation}
 
 Output valid JSON only: {{ "question": "one clear question", "expected_answer": "concise model answer" }}"""
+
+
+SHORTS_TOPICS_PROMPT = """You are given excerpts from uploaded learning materials.
+Identify the broad teachable topics that are explicitly present in this content.
+
+Rules:
+- Return ONLY a valid JSON array of strings.
+- Each string must be a concise topic title (2-8 words).
+- Include between 1 and 8 topics.
+- Topics must be distinct and non-overlapping.
+- Prefer curriculum-level themes over tiny details.
+- Do not invent topics not supported by the material.
+
+Material excerpts:
+---
+{materials_text}
+---
+
+Return JSON only, example:
+["Topic 1", "Topic 2"]"""
+
+
+SHORTS_DIALOGUE_PROMPT = """You are an AI dialogue writer.
+I will give you one general topic.
+You must output a JSON array (not a dictionary) of dialogue objects between Peter and Stewie from Family Guy.
+
+Each object must follow exactly:
+{
+  "dialogue": "Peter: your text here",
+  "character": "Peter",
+  "image": "peter.png",
+  "image_search": "short visual reference relevant to the topic",
+  "audio_processed": 0,
+  "audio_process_retry": 0
+}
+
+and similarly for Stewie with:
+- "character": "Stewie"
+- "image": "stewie.png"
+
+Rules:
+- Cover the topic thoroughly as an educational sequence.
+- Keep it funny, conversational, and teaching-oriented.
+- Peter asks/jokes/learns; Stewie explains clearly and accurately.
+- Max 32 dialogue objects.
+- Keep each dialogue under 100 characters unless clarity truly requires more.
+- Speakers must start dialogue text in English: "Peter:" or "Stewie:".
+- Set "image_search" only when useful, else "".
+- Output ONLY valid JSON array, no markdown, no prose.
+
+example:
+[
+  {
+    "dialogue": "Peter: Hey Stewie, everyone keeps saying transformers changed AI. Like Optimus Prime?",
+    "character": "Peter",
+    "image": "peter.png",
+    "image_search": "",
+    "audio_processed": 0,
+    "audio_process_retry": 0
+  },
+  {
+    "dialogue": "Stewie: Sadly no, Peter. These transformers are neural network architectures from a 2017 paper.",
+    "character": "Stewie",
+    "image": "stewie.png",
+    "image_search": "transformer architecture AI diagram",
+    "audio_processed": 0,
+    "audio_process_retry": 0
+  },
+  {
+    "dialogue": "Peter: So what made them such a big deal?",
+    "character": "Peter",
+    "image": "peter.png",
+    "image_search": "",
+    "audio_processed": 0,
+    "audio_process_retry": 0
+  }
+]
+
+Topic:
+{topic}
+"""
