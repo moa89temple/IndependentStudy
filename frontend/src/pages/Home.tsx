@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
+import { InfoCardDemo } from "@/components/ui/info-card-demo";
 import { api, type Course } from "../api";
 
 export default function Home() {
@@ -45,11 +46,16 @@ export default function Home() {
           </button>
         </form>
       </div>
+
+      <div className="card" style={{ padding: "0.5rem", overflow: "hidden" }}>
+        <InfoCardDemo />
+      </div>
+
       {loading ? (
-        <p style={{ color: "var(--muted)" }}>Loadingâ€¦</p>
+        <p style={{ color: "var(--color-muted-foreground)" }}>Loading…</p>
       ) : courses.length === 0 ? (
         <div className="card">
-          <p style={{ color: "var(--muted)", margin: 0 }}>
+          <p style={{ color: "var(--color-muted-foreground)", margin: 0 }}>
             No courses yet. Create one and upload PDF, TXT, or PPTX materials to get started.
           </p>
         </div>
@@ -60,7 +66,7 @@ export default function Home() {
               <Link to={`/courses/${c.id}`} data-analytics="home-open-course" style={{ display: "block" }}>
                 <div className="card" style={{ marginBottom: "0.5rem" }}>
                   <strong>{c.name}</strong>
-                  <span style={{ color: "var(--muted)", marginLeft: "0.5rem" }}>/{c.slug}</span>
+                  <span style={{ color: "var(--color-muted-foreground)", marginLeft: "0.5rem" }}>/{c.slug}</span>
                 </div>
               </Link>
             </li>
