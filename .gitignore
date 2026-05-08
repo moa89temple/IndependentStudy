@@ -25,6 +25,8 @@ infrastructure/*.tfstate
 infrastructure/*.tfstate.*
 infrastructure/lambda/*.zip
 
+terraform.tfstate
+
 # IDE and OS
 .idea/
 .vscode/
