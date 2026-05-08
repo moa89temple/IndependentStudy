@@ -1,4 +1,5 @@
 from fastapi import APIRouter, Depends
+from sqlalchemy.exc import OperationalError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
@@ -24,5 +25,13 @@ async def record_ui_clicks(body: UxClickBatchIn, db: AsyncSession = Depends(get_
                 viewport_h=int(c.viewport_h),
             )
         )
-    await db.flush()
+    try:
+        await db.flush()
+    except OperationalError as e:
+        # UX telemetry is best-effort. Under SQLite write contention, skip this batch
+        # instead of failing the user-facing request path.
+        if "database is locked" in str(e).lower():
+            await db.rollback()
+            return None
+        raise
     return None

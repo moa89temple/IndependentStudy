@@ -37,7 +37,8 @@ Identify the broad teachable topics that are explicitly present in this content.
 Rules:
 - Return ONLY a valid JSON array of strings.
 - Each string must be a concise topic title (2-8 words).
-- Include between 1 and 8 topics.
+- Include between 1 and 2 topics.
+- Choose the most generic topics that includes the most content.
 - Topics must be distinct and non-overlapping.
 - Prefer curriculum-level themes over tiny details.
 - Do not invent topics not supported by the material.

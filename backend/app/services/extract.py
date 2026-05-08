@@ -116,12 +116,18 @@ def _parse_dialogue_items(raw: str) -> list[dict]:
     for item in arr:
         if not isinstance(item, dict):
             continue
-        dialogue = str(item.get("dialogue", "")).strip()[:300]
+        dialogue = str(item.get("dialogue", "")).strip()
         character = str(item.get("character", "")).strip()
         image = str(item.get("image", "")).strip()
         image_search = str(item.get("image_search", "")).strip()[:120]
         if character not in {"Peter", "Stewie"}:
             continue
+        # Keep payload aligned with shorts service validation rules.
+        if not dialogue.startswith(f"{character}:"):
+            dialogue = f"{character}: {dialogue}".strip()
+        # Service prompt requires <=100 chars unless strictly needed; enforce hard cap
+        # to avoid 422 validation failures on oversized dialogue lines.
+        dialogue = dialogue[:100]
         if character == "Peter" and image != "peter.png":
             image = "peter.png"
         if character == "Stewie" and image != "stewie.png":
@@ -143,16 +149,40 @@ def _parse_dialogue_items(raw: str) -> list[dict]:
 
 def _post_generate_sync(dialogues: list[dict]) -> dict:
     url = f"{settings.shorts_api_base_url.rstrip('/')}/lizards/generate"
-    payload = json.dumps(dialogues).encode("utf-8")
-    req = urlrequest.Request(
-        url,
-        data=payload,
-        method="POST",
-        headers={"Content-Type": "application/json; charset=utf-8"},
-    )
-    with urlrequest.urlopen(req, timeout=45) as res:
-        raw = res.read().decode("utf-8")
-    return json.loads(raw)
+    payloads = [
+        dialogues,  # preferred shape
+        {"dialogues": dialogues},  # compatibility fallback for strict APIs
+    ]
+    last_error: Exception | None = None
+    for body in payloads:
+        payload = json.dumps(body).encode("utf-8")
+        req = urlrequest.Request(
+            url,
+            data=payload,
+            method="POST",
+            headers={"Content-Type": "application/json; charset=utf-8"},
+        )
+        try:
+            with urlrequest.urlopen(req, timeout=45) as res:
+                raw = res.read().decode("utf-8")
+            return json.loads(raw)
+        except urlerror.HTTPError as e:
+            detail = ""
+            try:
+                detail = e.read().decode("utf-8", errors="ignore")
+            except Exception:
+                pass
+            # 422 often means request schema mismatch; try fallback payload shape.
+            if e.code == 422:
+                last_error = ValueError(f"HTTP 422 from shorts API: {detail or e.reason}")
+                continue
+            raise ValueError(f"HTTP {e.code} from shorts API: {detail or e.reason}") from e
+        except (urlerror.URLError, TimeoutError, json.JSONDecodeError, ValueError) as e:
+            last_error = e
+            continue
+    if last_error:
+        raise last_error
+    raise ValueError("Shorts create request failed with unknown error.")
 
 
 def _get_job_sync(job_id: str) -> dict:
