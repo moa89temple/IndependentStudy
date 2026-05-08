@@ -44,7 +44,7 @@ export function ContentFunnelVisual({ counts, interactionsTotal }: { counts: Adm
                   {s.hint ? <span style={{ marginLeft: 6, opacity: 0.85 }}>({s.hint})</span> : null}
                 </span>
               </div>
-              <div style={{ height: 12, background: "var(--bg)", borderRadius: 999, border: `1px solid ${BORDER}`, overflow: "hidden" }}>
+              <div style={{ height: 12, background: "var(--background)", borderRadius: 999, border: `1px solid ${BORDER}`, overflow: "hidden" }}>
                 <div
                   style={{
                     height: "100%",

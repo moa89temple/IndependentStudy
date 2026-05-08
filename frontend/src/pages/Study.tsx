@@ -1,6 +1,19 @@
 import { useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
+import {
+  BookOpen,
+  Check,
+  ChevronLeft,
+  HelpCircle,
+  Keyboard,
+  Layers,
+  Loader2,
+  X,
+} from "lucide-react";
 import { api, type Flashcard, type PracticeQuestion, type ReviewData } from "../api";
+import { PageHeader } from "@/components/lms/PageHeader";
+import { EmptyState } from "@/components/lms/EmptyState";
+import { cn } from "@/lib/utils";
 
 export default function Study() {
   const { courseId } = useParams<{ courseId: string }>();
@@ -30,8 +43,9 @@ export default function Study() {
 
   if (loading || !data) {
     return (
-      <div className="container">
-        <p style={{ color: "var(--muted)" }}>Loading…</p>
+      <div className="lms-container flex min-h-[50vh] flex-col items-center justify-center gap-3">
+        <Loader2 className="h-8 w-8 animate-spin text-[var(--primary)]" aria-hidden />
+        <p className="text-sm text-[var(--muted-foreground)]">Loading study set…</p>
       </div>
     );
   }
@@ -42,43 +56,99 @@ export default function Study() {
   const hasQuestions = questions.length > 0;
 
   return (
-    <div className="container">
-      <div className="page-header">
-        <h1>Study</h1>
-        <Link to={`/courses/${id}`}>
-          <button type="button" className="secondary" data-analytics="study-back-course">
-            Back to course
-          </button>
-        </Link>
-      </div>
+    <div className="lms-container space-y-8 pb-12">
+      <PageHeader
+        title="Study session"
+        description="Review flashcards and practice questions generated from your course materials."
+        breadcrumbs={[
+          { label: "Dashboard", to: "/" },
+          { label: "Course", to: `/courses/${id}` },
+          { label: "Study" },
+        ]}
+        actions={
+          <Link
+            to={`/courses/${id}`}
+            className="btn-secondary inline-flex items-center gap-2 no-underline"
+            data-analytics="study-back-course"
+          >
+            <ChevronLeft className="h-4 w-4" aria-hidden />
+            Course
+          </Link>
+        }
+      />
 
       {!hasFlashcards && !hasQuestions ? (
-        <div className="card">
-          <p style={{ margin: 0, color: "var(--muted)" }}>
-            No study materials yet. Upload materials and run Process on the course page.
-          </p>
-        </div>
+        <EmptyState
+          icon={BookOpen}
+          title="Nothing to study yet"
+          description="Upload materials on the course page and run Process to generate flashcards and questions."
+          action={
+            <Link to={`/courses/${id}`} className="btn-primary no-underline">
+              Go to course
+            </Link>
+          }
+        />
       ) : (
         <>
-          <div style={{ display: "flex", gap: "0.5rem", marginBottom: "1rem" }}>
-            <button
-              type="button"
-              className={tab === "flashcards" ? "" : "secondary"}
-              onClick={() => setTab("flashcards")}
-              disabled={!hasFlashcards}
-              data-analytics="study-tab-flashcards"
-            >
-              Flashcards ({flashcards.length})
-            </button>
-            <button
-              type="button"
-              className={tab === "questions" ? "" : "secondary"}
-              onClick={() => setTab("questions")}
-              disabled={!hasQuestions}
-              data-analytics="study-tab-questions"
-            >
-              Practice questions ({questions.length})
-            </button>
+          <div
+            className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between"
+            role="tablist"
+            aria-label="Study mode"
+          >
+            <div className="inline-flex rounded-xl border border-[var(--border)] bg-[var(--card)] p-1 shadow-sm">
+              <button
+                type="button"
+                role="tab"
+                aria-selected={tab === "flashcards"}
+                disabled={!hasFlashcards}
+                onClick={() => {
+                  setTab("flashcards");
+                  setShowBack(false);
+                }}
+                data-analytics="study-tab-flashcards"
+                className={cn(
+                  "inline-flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-semibold transition",
+                  tab === "flashcards"
+                    ? "bg-[var(--primary)] text-[var(--primary-foreground)] shadow-sm"
+                    : "text-[var(--muted-foreground)] hover:bg-[var(--muted)]",
+                  !hasFlashcards && "cursor-not-allowed opacity-40"
+                )}
+              >
+                <Layers className="h-4 w-4" aria-hidden />
+                Flashcards
+                <span className="rounded-full bg-black/10 px-2 py-0.5 text-xs font-mono tabular-nums dark:bg-white/15">
+                  {flashcards.length}
+                </span>
+              </button>
+              <button
+                type="button"
+                role="tab"
+                aria-selected={tab === "questions"}
+                disabled={!hasQuestions}
+                onClick={() => {
+                  setTab("questions");
+                  setShowAnswer(false);
+                }}
+                data-analytics="study-tab-questions"
+                className={cn(
+                  "inline-flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-semibold transition",
+                  tab === "questions"
+                    ? "bg-[var(--primary)] text-[var(--primary-foreground)] shadow-sm"
+                    : "text-[var(--muted-foreground)] hover:bg-[var(--muted)]",
+                  !hasQuestions && "cursor-not-allowed opacity-40"
+                )}
+              >
+                <HelpCircle className="h-4 w-4" aria-hidden />
+                Questions
+                <span className="rounded-full bg-black/10 px-2 py-0.5 text-xs font-mono tabular-nums dark:bg-white/15">
+                  {questions.length}
+                </span>
+              </button>
+            </div>
+            <p className="flex items-center gap-2 text-xs text-[var(--muted-foreground)]">
+              <Keyboard className="h-3.5 w-3.5 shrink-0" aria-hidden />
+              Tip: Space flips cards when focused · Enter submits ratings after reveal
+            </p>
           </div>
 
           {tab === "flashcards" && hasFlashcards && (
@@ -124,46 +194,83 @@ function FlashcardView({
   onRate: (correct: boolean) => void;
 }) {
   const fc = flashcards[index];
+  const total = flashcards.length;
+
   const next = () => {
     setShowBack(false);
     setIndex((index + 1) % flashcards.length);
   };
+
   const flip = () => setShowBack(!showBack);
+  const progressPct = total ? Math.round(((index + 1) / total) * 100) : 0;
 
   return (
-    <div className="card">
-      <p style={{ color: "var(--muted)", margin: "0 0 0.5rem", fontSize: "0.85rem" }}>
-        Card {index + 1} of {flashcards.length}
-      </p>
-      <div className="flashcard" data-analytics="study-flip-card" onClick={flip} onKeyDown={(e) => e.key === "Enter" && flip()} role="button" tabIndex={0}>
-        {!showBack ? <div>{fc.front}</div> : <div className="back">{fc.back}</div>}
+    <div className="mx-auto max-w-2xl space-y-6">
+      <div className="space-y-2">
+        <div className="flex justify-between text-xs font-medium text-[var(--muted-foreground)]">
+          <span>
+            Card {index + 1} / {total}
+          </span>
+          <span>{progressPct}% through deck</span>
+        </div>
+        <div className="h-2 overflow-hidden rounded-full bg-[var(--muted)]">
+          <div
+            className="h-full rounded-full bg-[var(--primary)] transition-all duration-300"
+            style={{ width: `${progressPct}%` }}
+          />
+        </div>
       </div>
-      <p style={{ fontSize: "0.85rem", color: "var(--muted)", margin: "0.5rem 0 0" }}>
-        Click card to flip
-      </p>
+
+      <div className="lms-card lms-card-elevated overflow-hidden p-0">
+        <div
+          data-flashcard="true"
+          role="button"
+          tabIndex={0}
+          data-analytics="study-flip-card"
+          onClick={flip}
+          onKeyDown={(e) => {
+            if (e.key === "Enter" || e.key === " ") {
+              e.preventDefault();
+              flip();
+            }
+          }}
+          className="flashcard min-h-[200px] rounded-none border-0"
+        >
+          {!showBack ? (
+            <div className="px-4 text-lg font-medium leading-snug text-[var(--foreground)]">{fc.front}</div>
+          ) : (
+            <div className="back px-4 text-[var(--foreground)]">{fc.back}</div>
+          )}
+        </div>
+      </div>
+
+      <p className="text-center text-xs text-[var(--muted-foreground)]">Click the card or press Space to flip</p>
+
       {showBack && (
-        <div style={{ display: "flex", gap: "0.5rem", marginTop: "1rem" }}>
+        <div className="flex flex-wrap justify-center gap-3">
           <button
             type="button"
             data-analytics="study-flashcard-incorrect"
+            className="btn-danger inline-flex min-w-[8rem] items-center justify-center gap-2"
             onClick={() => {
               onRate(false);
               next();
             }}
-            style={{ background: "var(--wrong)" }}
           >
-            Incorrect
+            <X className="h-4 w-4" aria-hidden />
+            Again
           </button>
           <button
             type="button"
             data-analytics="study-flashcard-correct"
+            className="btn-success inline-flex min-w-[8rem] items-center justify-center gap-2"
             onClick={() => {
               onRate(true);
               next();
             }}
-            style={{ background: "var(--right)" }}
           >
-            Correct
+            <Check className="h-4 w-4" aria-hidden />
+            Got it
           </button>
         </div>
       )}
@@ -187,56 +294,81 @@ function QuestionsView({
   onRate: (correct: boolean) => void;
 }) {
   const q = questions[index];
+  const total = questions.length;
+  const pct = total ? Math.round(((index + (showAnswer ? 1 : 0)) / total) * 100) : 0;
+
   const next = () => {
     setShowAnswer(false);
     setIndex((index + 1) % questions.length);
   };
 
   return (
-    <div className="card">
-      <p style={{ color: "var(--muted)", margin: "0 0 0.5rem", fontSize: "0.85rem" }}>
-        Question {index + 1} of {questions.length}
-      </p>
-      <div className="question-block">
-        <h3>Question</h3>
-        <p style={{ margin: 0 }}>{q.question}</p>
+    <div className="mx-auto max-w-2xl space-y-6">
+      <div className="space-y-2">
+        <div className="flex justify-between text-xs font-medium text-[var(--muted-foreground)]">
+          <span>
+            Question {index + 1} / {total}
+          </span>
+          <span>{Math.min(100, pct)}% complete</span>
+        </div>
+        <div className="h-2 overflow-hidden rounded-full bg-[var(--muted)]">
+          <div
+            className="h-full rounded-full bg-[var(--primary)] transition-all duration-300"
+            style={{ width: `${pct}%` }}
+          />
+        </div>
       </div>
-      {!showAnswer ? (
-        <button type="button" data-analytics="study-show-answer" onClick={() => setShowAnswer(true)}>
-          Show answer
-        </button>
-      ) : (
-        <>
-          <div className="question-block">
-            <h3>Expected answer</h3>
-            <div className="answer">{q.expected_answer}</div>
-          </div>
-          <div style={{ display: "flex", gap: "0.5rem", marginTop: "1rem" }}>
-            <button
-              type="button"
-              data-analytics="study-question-incorrect"
-              onClick={() => {
-                onRate(false);
-                next();
-              }}
-              style={{ background: "var(--wrong)" }}
-            >
-              Incorrect
-            </button>
-            <button
-              type="button"
-              data-analytics="study-question-correct"
-              onClick={() => {
-                onRate(true);
-                next();
-              }}
-              style={{ background: "var(--right)" }}
-            >
-              Correct
-            </button>
-          </div>
-        </>
-      )}
+
+      <div className="lms-card lms-card-elevated space-y-6">
+        <div className="question-block mb-0">
+          <h3>Prompt</h3>
+          <p className="m-0 text-base leading-relaxed text-[var(--foreground)]">{q.question}</p>
+        </div>
+
+        {!showAnswer ? (
+          <button
+            type="button"
+            data-analytics="study-show-answer"
+            className="btn-primary w-full sm:w-auto"
+            onClick={() => setShowAnswer(true)}
+          >
+            Reveal suggested answer
+          </button>
+        ) : (
+          <>
+            <div className="question-block border-t border-[var(--border)] pt-6">
+              <h3>Suggested answer</h3>
+              <div className="answer m-0 border-l-[var(--primary)]">{q.expected_answer}</div>
+            </div>
+            <div className="flex flex-wrap gap-3 border-t border-[var(--border)] pt-6">
+              <button
+                type="button"
+                data-analytics="study-question-incorrect"
+                className="btn-danger inline-flex flex-1 items-center justify-center gap-2 sm:flex-none"
+                onClick={() => {
+                  onRate(false);
+                  next();
+                }}
+              >
+                <X className="h-4 w-4" aria-hidden />
+                Needs work
+              </button>
+              <button
+                type="button"
+                data-analytics="study-question-correct"
+                className="btn-success inline-flex flex-1 items-center justify-center gap-2 sm:flex-none"
+                onClick={() => {
+                  onRate(true);
+                  next();
+                }}
+              >
+                <Check className="h-4 w-4" aria-hidden />
+                Nailed it
+              </button>
+            </div>
+          </>
+        )}
+      </div>
     </div>
   );
 }
