@@ -164,7 +164,9 @@ def _get_job_sync(job_id: str) -> dict:
 
 
 async def _create_short_video_for_topic(session: AsyncSession, course_id: int, topic: str) -> None:
-    dialogue_prompt = SHORTS_DIALOGUE_PROMPT.format(topic=topic)
+    # SHORTS_DIALOGUE_PROMPT intentionally contains raw JSON braces in examples.
+    # Using str.format() treats those braces as placeholders and can raise KeyError.
+    dialogue_prompt = SHORTS_DIALOGUE_PROMPT.replace("{topic}", topic)
     dialogue_raw = await _call_llm(
         system="Output only valid JSON array of dialogue objects, no markdown.",
         user=dialogue_prompt,
