@@ -278,6 +278,15 @@ async def run_extraction(session: AsyncSession, course_id: int) -> None:
     if not course:
         raise ValueError("Course not found")
 
+    # Redis may still contain old embeddings/chunk payloads after a user deletes/re-uploads
+    # materials. Guard concept inserts by validating FK targets against current DB rows.
+    valid_material_ids: set[int] = {m.id for m in course.materials}
+    valid_chunk_ids: set[int] = {
+        ch.id
+        for m in course.materials
+        for ch in m.chunks
+    }
+
     chunks_for_redis: list[tuple] = []  # (chunk_id, course_id, material_id, material_title, content, page_or_slide)
     for material in course.materials:
         if len(chunks_for_redis) >= MAX_CHUNKS_TO_EMBED:
@@ -347,12 +356,17 @@ async def run_extraction(session: AsyncSession, course_id: int) -> None:
         source_span = (item.get("source_span") or "").strip() or None
         if not name or not explanation:
             continue
+        material_id = ref.get("material_id")
+        chunk_id = ref.get("chunk_id")
+        source_material_id = material_id if material_id in valid_material_ids else None
+        source_chunk_id = chunk_id if chunk_id in valid_chunk_ids else None
+
         concept = Concept(
             course_id=course_id,
             name=name,
             explanation=explanation,
-            source_material_id=ref.get("material_id"),
-            source_chunk_id=ref.get("chunk_id"),
+            source_material_id=source_material_id,
+            source_chunk_id=source_chunk_id,
             source_span=source_span,
         )
         session.add(concept)
